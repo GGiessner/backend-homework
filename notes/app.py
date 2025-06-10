@@ -1,120 +1,72 @@
 import json
 import requests
-from flask import Flask, request, render_template, abort
+from flask import Flask
+from flask import request
+from flask import render_template
 from flask_sqlalchemy import SQLAlchemy
-from flask_socketio import SocketIO
-from flask import redirect, url_for
 
-# ───────────────────────────────────────────────
-# Initialisation Flask + SocketIO + Base SQLite
-# ───────────────────────────────────────────────
+# Usual flask initialization
 app = Flask(__name__)
 
-# Base de données SQLite (fichier local)
+# Database declaration
 db_name = 'notes.db'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_name
-db = SQLAlchemy(app)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_name      
+db = SQLAlchemy(app)   
 
-# SocketIO : CORS libre pour le dev ; async_mode="eventlet" pour le temps réel
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
-# ───────────────────────────────────────────────
-# Modèle SQLAlchemy
-# ───────────────────────────────────────────────
+@app.route('/')
+def fct():
+    return "mon serveur fonctionne"
+
+# Define a table in the database
 class Note(db.Model):
     __tablename__ = 'note'
-    id      = db.Column(db.Integer, primary_key=True)
-    title   = db.Column(db.String)
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String)
     content = db.Column(db.String)
-    done    = db.Column(db.Boolean, default=False)
+    done = db.Column(db.Boolean, default=False)
 
-with app.app_context():
+with app.app_context():     # create the database 
     db.create_all()
 
-# ───────────────────────────────────────────────
-# Routes API
-# ───────────────────────────────────────────────
-@app.route('/')
-def root():
-    # redirige vers la page front-end des notes
-    return redirect(url_for('front_notes'))
 
-"""
-Créer une note :
-http :5001/api/notes title="courses" content="acheter des céréales"
-http :5001/api/notes title="devoirs" content="lire le cours de MMC" done=true
-"""
 @app.route('/api/notes', methods=['POST'])
 def create_note():
+    # we expect the user to send a json object with the 3 fields (title, content, done)
     try:
-        params  = json.loads(request.data)
-        title   = params['title']
-        content = params['content']
-        done    = params.get('done')
-        to_bool = lambda x: str(x).lower() in ['true', '1', 'yes', 'on']
-
-        note = Note(
-            title   = title,
-            content = content,
-            done    = to_bool(done) if done is not None else False
-        )
-        db.session.add(note)
+        parameters = json.loads(request.data)
+        title = parameters['title']
+        content = parameters['content']
+        done = parameters.get('done', None) # attention string
+        
+        if done == None:
+            new_note = Note(title=title, content=content)
+        else :
+            to_bool = lambda x: str(x).lower() in ['true', '1']
+            new_note = Note(title=title, content=content, done=to_bool(done))  
+        
+        print("received request to create note")
+        db.session.add(new_note)
         db.session.commit()
-        return {'id': note.id, 'title': note.title, 'content': note.content, 'done': note.done}
+        return parameters
     except Exception as exc:
-        return {'error': f'{type(exc).__name__}: {exc}'}, 422
+        return dict(error=f"{type(exc)}: {exc}"), 422
+    
 
-"""
-Lister toutes les notes :
-http :5001/api/notes
-"""
 @app.route('/api/notes', methods=['GET'])
 def list_notes():
     notes = Note.query.all()
-    return [
-        {'id': n.id, 'title': n.title, 'content': n.content, 'done': n.done}
-        for n in notes
-    ]
+    return [dict(id=note.id, title=note.title, content=note.content, done=note.done) for note in notes]
 
 
 
-"""
-Basculer l’état done d’une note :
-http :5001/api/notes/3/done   (via PATCH)
-"""
-@app.route('/api/notes/<int:note_id>/done', methods=['PATCH'])
-def toggle_done(note_id):
-    note = Note.query.get_or_404(note_id)
-    note.done = not note.done
-    db.session.commit()
-
-    # Diffusion en temps réel à tous les navigateurs
-    socketio.emit('note_updated', {'id': note.id, 'done': note.done}, broadcast=True)
-    return {'id': note.id, 'done': note.done}
-
-# ───────────────────────────────────────────────
-# Frontend (rend le template Jinja2)
-# ───────────────────────────────────────────────
+# Frontend
 @app.route('/front/notes')
-def front_notes():
-    notes = Note.query.all()          # ← accès direct SQLAlchemy
-    notes = [{'id': n.id, 'title': n.title,
-              'content': n.content, 'done': n.done} for n in notes]
+def front_users():
+    url = request.url_root + '/api/notes'
+    request = requests.get(url)
+    if not (200 <= request.status_code < 300):
+        return dict(error=f"could not request notes list", url=url,
+                    status=request.status_code, text=request.text)
+    notes = request.json()
     return render_template('notes.html.j2', notes=notes)
-
-# ───────────────────────────────────────────────
-# Données initiales (si la table est vide)
-# ───────────────────────────────────────────────
-with app.app_context():
-    if Note.query.count() == 0:
-        db.session.add_all([
-            Note(title="courses", content="acheter des céréales", done=False),
-            Note(title="devoirs", content="lire le cours de MMC", done=False),
-        ])
-        db.session.commit()
-
-# ───────────────────────────────────────────────
-# Lancement de l’application
-# ───────────────────────────────────────────────
-if __name__ == '__main__':
-    socketio.run(app, port=5000, debug=True)
