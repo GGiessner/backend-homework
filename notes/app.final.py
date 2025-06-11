@@ -13,7 +13,6 @@ db_name = 'notes.db'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_name      
 db = SQLAlchemy(app)   
 
-
 @app.route('/')
 def fct():
     return "mon serveur fonctionne"
@@ -32,25 +31,23 @@ with app.app_context():     # create the database
 
 @app.route('/api/notes', methods=['POST'])
 def create_note():
-    # we expect the user to send a json object with the 3 fields (title, content, done)
     try:
-        parameters = json.loads(request.data)
-        title = parameters['title']
-        content = parameters['content']
-        done = parameters.get('done', None) # attention string
-        
-        if done == None:
-            new_note = Note(title=title, content=content)
-        else :
-            to_bool = lambda x: str(x).lower() in ['true', '1']
-            new_note = Note(title=title, content=content, done=to_bool(done))  
-        
-        print("received request to create note")
-        db.session.add(new_note)
+        params  = json.loads(request.data)
+        title   = params['title']
+        content = params['content']
+        done    = params.get('done')
+        to_bool = lambda x: str(x).lower() in ['true', '1', 'yes', 'on']
+
+        note = Note(
+            title   = title,
+            content = content,
+            done    = to_bool(done) if done is not None else False
+        )
+        db.session.add(note)
         db.session.commit()
-        return parameters
+        return {'id': note.id, 'title': note.title, 'content': note.content, 'done': note.done}
     except Exception as exc:
-        return dict(error=f"{type(exc)}: {exc}"), 422
+        return {'error': f'{type(exc).__name__}: {exc}'}, 422
     
 
 @app.route('/api/notes', methods=['GET'])
