@@ -6,6 +6,7 @@ from flask import render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
 import eventlet
+
 eventlet.monkey_patch()
 
 
@@ -13,6 +14,7 @@ eventlet.monkey_patch()
 app = Flask(__name__)
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+
 
 # Database declaration
 db_name = 'notes.db'
@@ -22,6 +24,7 @@ db = SQLAlchemy(app)
 @app.route('/')
 def fct():
     return "mon serveur fonctionne"
+
 
 # Define a table in the database
 class Note(db.Model):
@@ -83,6 +86,7 @@ def front_users():
                     status=request.status_code, text=request.text)
     notes = request.json()
     return render_template('notes.html.j2', notes=notes)
+
 
 #lancement:
 
