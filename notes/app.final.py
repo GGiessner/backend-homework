@@ -5,7 +5,7 @@ from flask import request
 from flask import render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
-from flask import redirect, url_for
+
 
 # Usual flask initialization
 app = Flask(__name__)
@@ -79,3 +79,8 @@ def front_users():
                     status=request.status_code, text=request.text)
     notes = request.json()
     return render_template('notes.html.j2', notes=notes)
+
+#lancement:
+
+if __name__ == '__main__':
+    socketio.run(app, port=5000, debug=True)
