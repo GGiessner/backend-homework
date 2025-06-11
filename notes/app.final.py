@@ -10,6 +10,8 @@ from flask_socketio import SocketIO
 # Usual flask initialization
 app = Flask(__name__)
 
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+
 # Database declaration
 db_name = 'notes.db'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_name      
