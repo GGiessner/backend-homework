@@ -5,6 +5,8 @@ from flask import request
 from flask import render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
+import eventlet
+eventlet.monkey_patch()
 
 
 # Usual flask initialization
