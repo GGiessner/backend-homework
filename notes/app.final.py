@@ -4,6 +4,8 @@ from flask import Flask
 from flask import request
 from flask import render_template
 from flask_sqlalchemy import SQLAlchemy
+from flask_socketio import SocketIO
+from flask import redirect, url_for
 
 # Usual flask initialization
 app = Flask(__name__)
@@ -47,7 +49,7 @@ def create_note():
         db.session.commit()
         return {'id': note.id, 'title': note.title, 'content': note.content, 'done': note.done}
     except Exception as exc:
-        return {'error': f'{type(exc).__name__}: {exc}'}, 422
+        return {'error': f'{type(exc).__name__}: {exc}'}, 42
     
 
 @app.route('/api/notes', methods=['GET'])
@@ -55,6 +57,16 @@ def list_notes():
     notes = Note.query.all()
     return [dict(id=note.id, title=note.title, content=note.content, done=note.done) for note in notes]
 
+
+@app.route('/api/notes/<int:note_id>/done', methods=['PATCH'])
+def MAJutil(note_id):
+    note = Note.query.get_or_404(note_id)
+    note.done = not note.done
+    db.session.commit()
+
+    # Diffusion en temps réel à tous les navigateurs
+    socketio.emit('note_updated', {'id': note.id, 'done': note.done}, broadcast=True)
+    return {'id': note.id, 'done': note.done}
 
 
 # Frontend
